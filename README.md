@@ -1,1 +1,1 @@
-In this repository, we are going to try test the performence, powerconsumption, and sensor acuracy for a msters degree project in Climate and Environment focused in water level monitoring for flood alerts. 
+In this repository, we are going to try to test the performence, power consumption, and sensor acuracy for a masters degree project related with Climate and Environment and focused in water level monitoring for flood alerts. 
