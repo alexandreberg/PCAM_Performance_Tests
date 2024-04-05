@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"path": "Nucleo_L476RG"
+		},
+		{
+			"name": "Arduino_MKR1010",
+			"path": "Arduino_MKR1010"
+		},
+		{
+			"name": "STM32_Blue_Pill",
+			"path": "STM32_Blue_Pill"
+		}
+	],
+	"settings": {}
+}
