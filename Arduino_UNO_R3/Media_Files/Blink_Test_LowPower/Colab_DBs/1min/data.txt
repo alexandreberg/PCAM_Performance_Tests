@@ -1,0 +1,5 @@
+Mean Current: 20.91 mA
+Standard Deviation of Current: 2.02 mA
+Maximum Current: 29.23 mA
+Minimum Current: 0.00 mA
+Interval Time of the Analysis: 60.00 sec
