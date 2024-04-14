@@ -13,9 +13,5 @@
 *.WMV
 *.mkv
 *.MKV
-# Ignora todos os arquivos maiores que 100 MB
->100M *
-
-# Ignora apenas arquivos de vídeo maiores que 100 MB
->100M *.mp4
-
+*.csv
+*.CSV
