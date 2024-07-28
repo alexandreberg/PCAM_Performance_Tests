@@ -43,13 +43,19 @@ GND         - GND                   - GND
 
 Example of log results in serial monitor:
 Testing Ultrasonic Sensor US-100 on a Nucleo L476RG Board...
-distance_cm (filtered): 125 cm
-distance_cm (filtered): 123 cm
-distance_cm (filtered): 144 cm
-distance_cm (filtered): 165 cm
-distance_cm (filtered): 163 cm
-distance_cm (filtered): 163 cm
-
+Restarting the reading cycle
+distance_cm: 21.00 cm | reading_interval: 100 ms | reading_cycle: 1
+distance_cm: 21.00 cm | reading_interval: 200 ms | reading_cycle: 2
+distance_cm: 21.00 cm | reading_interval: 300 ms | reading_cycle: 3
+distance_cm: 21.00 cm | reading_interval: 400 ms | reading_cycle: 4
+distance_cm: 21.00 cm | reading_interval: 500 ms | reading_cycle: 5
+distance_cm: 21.00 cm | reading_interval: 600 ms | reading_cycle: 6
+distance_cm: 21.00 cm | reading_interval: 700 ms | reading_cycle: 7
+distance_cm: 21.00 cm | reading_interval: 800 ms | reading_cycle: 8
+distance_cm: 21.00 cm | reading_interval: 900 ms | reading_cycle: 9
+distance_cm: 21.00 cm | reading_interval: 1000 ms | reading_cycle: 10
+distance_cm: 5.00 cm | reading_interval: 700 ms | reading_cycle: 7 <=== WARNING MIN_DISTANCE_CM 10.00 cm REACHED!
+distance_cm: 164.00 cm | reading_interval: 200 ms | reading_cycle: 2 <=== WARNING MAX_DISTANCE_CM 100.00 cm REACHED!
 */
 
 #define ID "US-100" //<=== change the sensor name ====
