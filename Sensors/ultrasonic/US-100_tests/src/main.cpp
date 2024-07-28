@@ -32,35 +32,42 @@ distance_cm (filtered): 163 cm
 
 */
 
-#define ID "Sensor_01" //<=== CHANGE HERE ====
+#define ID "US-100" //<=== CHANGE HERE ====
 #define enable_Ultrasonic
+//#define enable_blinky
 
 // General Library Definitions
 #include <Arduino.h>
 
 // US-100 Ultrasonic Sensor definitions
 #ifdef enable_Ultrasonic
-  #include <SoftwareSerial.h> //Lib for the US-100 serial communication
+  #include <SoftwareSerial.h>           //Lib for the US-100 serial communication
   // Pins Assignments
-  const int US100_TX = PA10;  //define the US100 tx pin
-  const int US100_RX = PB3;   //define the US100 rx pin 
+  const int US100_TX = PA10;            //define the US100 tx pin
+  const int US100_RX = PB3;             //define the US100 rx pin 
 
-  SoftwareSerial US100Serial(US100_RX, US100_TX); //RX, TX
+  SoftwareSerial US100Serial(US100_RX, US100_TX); //Pin definitions for RX, TX
 
   unsigned int MSB_byte_dist = 0;       //stores the MSB of distance value
   unsigned int LSB_byte_dist = 0;       //stores the LSB of distance value
   const float MIN_DISTANCE_CM = 10.0;   //Minimum distance to consider acceptable (cm)
   const float MAX_DISTANCE_CM = 100.0;  //Maximum distance to consider acceptable (cm)
+  int num_readings_count = 0;                 //number of sensor readings
   int min_distance_counter = 0;         //count the number of sensor readings under minimum sensor range
   int max_distance_counter = 0;         //count the number of sensor readings over maximum sensor range
-
+  float distance_moving_average = 0.0;  //stores the value of the distance moving average
   const int NUM_READINGS = 10;          //number of readings to take the moving avarage (média móvel)
   float readings[NUM_READINGS];         //array to store the readings
   int read_Index = 0;                   //index for the next array value
   float sum_of_total_readings = 0.0;    //stores the sum of the readings
-  float readings_average = 0.0;         //stores the average of the readings
-  float distance_cm = 0.0;              //stores the readings_average calculated distance value
-
+  float distance_cm = 0.0;              //stores the distance_moving_average calculated distance value
+  long reading_time = 0.0;              //time in ms
+  long start_reading_interval = 60.0;   //time in ms
+  long reading_interval = start_reading_interval;
+  long stop_reading_interval = 5000.0;  //time in ms
+  int reading_cycle = 1;                //counts the cycles of the readigs
+  unsigned long previous_US_millis = 0; // Armazena o último instante em que o LED mudou de estado
+  const int ledPin = LED_BUILTIN;       // Pino do LED (geralmente 13)
 #endif //end enable_Ultrasonic
 
 // General Variable definitions
@@ -71,26 +78,40 @@ const char* compilation_time = __TIME__;
 #define SKETCH_NAME "main.cpp"
 
 // Variables not used yet
-int reading_interval = 10;      //time in ms
-float moving_average = 0.0;     //stores the value of the moving readings_average
-int test_time = 60 * 5;         // 5 minutes
+int test_time = 60 * 5;         // 5 minutes 
 int temp = 0;
+
+#ifdef enable_blinky
+  unsigned long previousMillis = 0; // Armazena o último instante em que o LED mudou de estado
+  const long interval = 100; // Intervalo entre as piscadas (em milissegundos)
+#endif
 
 /**************************************************** Headers of the Function definitions ********************************************************/
 void sketchSetup();
-void setupUltrasonic();
-void readUltrasonic();
+void ultrasonicSetup();
+void ultrasonicRead();
+void blinky();
 
 
 /**************************************************** setup() ********************************************************/
 void setup() {
     sketchSetup();
-    setupUltrasonic();
+    #ifdef enable_Ultrasonic
+      ultrasonicSetup();
+    #endif
+
+    pinMode(ledPin, OUTPUT); // Configura o pino do LED como saída
+
 } //end setup
  
 /**************************************************** loop() ********************************************************/
 void loop() {
-    readUltrasonic();
+  #ifdef enable_Ultrasonic
+     ultrasonicRead();
+  #endif
+  #ifdef enable_blinky
+    blinky();
+  #endif
 } //end loop
 
 
@@ -99,30 +120,25 @@ void loop() {
 void sketchSetup() {
   // Show sketch initial description and starts serial monitor
   Serial.begin(115200); 
-
+  Serial.println("\n\n******************************************************************************************"); 
   Serial.println("Starting Sensor: " + String(ID)); 
-  Serial.println("\nIlha 3d");
-  Serial.println("\n(48) 99852-6523");
-  Serial.println("\nwww.ilha3d.com");
   Serial.println("\n");
   Serial.println("Compilation Date: " + String(__DATE__));
   Serial.println("Compilation Time: " + String(__TIME__));
   Serial.println("\nSystem version: US-100_20240726_01");
   Serial.println("");
-  Serial.println("Developer: Alexandre Nuernberg");
-  Serial.println("Developers e-mail: alexandreberg@gmail.com");
-  Serial.println("Master\'s thesis advisor: Sergio Augusto Bitencourt Petrovcic");
-  Serial.println("Advisor\'s e-mail: sergio.petrovcic@ifsc.edu.br");
+  Serial.println("Developped by: Alexandre Nuernberg - alexandreberg@gmail.com");
+  Serial.println("Master\'s thesis advisor: Sergio Augusto Bitencourt Petrovcic - sergio.petrovcic@ifsc.edu.br");
   Serial.println("");
   Serial.println("ProjectFolder: " + String(SKETCH_DIR));
   Serial.println("\nProject Sketch: " + String(SKETCH_NAME));
-  Serial.println("This code can be found in: https://github.com/alexandreberg/PCAM_Performance_Tests.git");
-  
+  Serial.println("\nThis code can be found in: https://github.com/alexandreberg/PCAM_Performance_Tests.git");
+  Serial.println("******************************************************************************************"); 
   delay(1000);
 }
 
-/**************************************************** setupUltrasonic() ********************************************************/
-void setupUltrasonic(){
+/**************************************************** ultrasonicSetup() ********************************************************/
+void ultrasonicSetup(){
   //Serial.println("Setting up US-100 Ultrasonic Sensor");
   Serial.println("\n\n\nTesting Ultrasonic Sensor US-100 on a Nucleo L476RG Board...\n\n");
   US100Serial.begin(9600); //US-100 is running in serial mode
@@ -132,61 +148,98 @@ void setupUltrasonic(){
       } //end for
 }
 
-/**************************************************** readUltrasonic() ********************************************************/
-void readUltrasonic(){
-  delay(5); //TODO see if it is needed
+/**************************************************** ultrasonicRead() ********************************************************/
+void ultrasonicRead(){
+  //reading_interval = start_reading_interval * reading_cycle;
+  // Serial.println("reading_interval = " + String(reading_interval));
+  unsigned long current_US_millis = millis();
+  // reading_time = current_US_millis - previous_US_millis;
+  // Serial.println("reading_time = " + String(reading_time));
+  // Serial.println("stop_reading_interval = " + String(stop_reading_interval));
+  // Serial.println("previous_US_millis = " + String(previous_US_millis));
+  // delay(1000);
+
+  if (current_US_millis - previous_US_millis >= reading_interval && reading_time < stop_reading_interval) {  //start if millis
+  //if (reading_time >= reading_interval) {  //start if millis
+    //reading_cycle++;
+    // Serial.println("Entrou no if do millis: reading_interval = " + String(reading_interval));
+    // Serial.println("Entrou no if do millis: reading_cycle = " + String(reading_cycle));
+
+    // Checks if the time interval has elapsed
+    previous_US_millis = current_US_millis;
+
     US100Serial.flush();
-    US100Serial.write(0x55); //command to start reading the distance
-    delay(500);  //TODO see if it is needed
- 
-    if(US100Serial.available() >= 2) 
-    {
-        delay(10);
-        // Read the distance value
-        // The distance value is stored in 2 bytes MSB_byte_dist and LSB_byte_dist
-        MSB_byte_dist = US100Serial.read(); 
-        LSB_byte_dist = US100Serial.read();
+    US100Serial.write(0x55); //trigger US100 to start measuring the distance
+    delay(60);  // Give the sensor a little time to make the measurement
+  
+      if(US100Serial.available() >= 2)    // check if received 2 bytes correctly
+      {
+          // Read the distance value
+          // The distance value is stored in 2 bytes MSB_byte_dist and LSB_byte_dist
+          MSB_byte_dist = US100Serial.read(); 
+          LSB_byte_dist = US100Serial.read();
 
-        // To retrieve it you have to do the following calculation:
-        distance_cm  = (MSB_byte_dist * 256 + LSB_byte_dist)/10; //divide by 10 to have the distance in cm otherwhise it is in mm
+          num_readings_count++; //Counts the numer of sensor readings
 
-        // Filter the readings in the range of sensors specifications
-        if (distance_cm > MIN_DISTANCE_CM && distance_cm < MAX_DISTANCE_CM) {
-          // Removes the oldest reading from the sum_of_total_readings sum
-          sum_of_total_readings -= readings[read_Index];
+          // To retrieve it you have to do the following calculation:
+          distance_cm  = (MSB_byte_dist * 256 + LSB_byte_dist)/10; //divide by 10 to have the distance in cm otherwhise it is in mm
 
-          // Store the new reading in the array
-          readings[read_Index] = distance_cm;
+          // Filter the readings in the range of sensors specifications
+          if (distance_cm > MIN_DISTANCE_CM && distance_cm < MAX_DISTANCE_CM) {
+            // Removes the oldest reading from the sum_of_total_readings sum
+            sum_of_total_readings -= readings[read_Index];
 
-          // Adds the new reading to the sum_of_total_readings sum
-          sum_of_total_readings += readings[read_Index];
+            // Store the new reading in the array
+            readings[read_Index] = distance_cm;
 
-          // Advance to the next index in the array
-          read_Index = (read_Index + 1) % NUM_READINGS;
+            // Adds the new reading to the sum_of_total_readings sum
+            sum_of_total_readings += readings[read_Index];
 
-          // Calculates the readings_average
-          readings_average = sum_of_total_readings / NUM_READINGS;
+            // Advance to the next index in the array
+            read_Index = (read_Index + 1) % NUM_READINGS;
 
-          //TODO: Change the logic to just start showing the distances after the NUM_READINGS have being reached
-          Serial.println("distance_cm (filtered): " + String(readings_average) + " cm");
+            // Calculates the distance_moving_average
+            distance_moving_average = sum_of_total_readings / NUM_READINGS;
 
-        } //end if
-        else if (distance_cm <= MIN_DISTANCE_CM) {
-          min_distance_counter++;
-          Serial.println("\n\nWARNING! - Reading outside acceptable range!");
-          Serial.println("Distance measured: " + String(distance_cm) + "cm, is shorter than MIN_DISTANCE_CM " + String(MIN_DISTANCE_CM) + "cm");
-          Serial.println("min_distance_counter = " + String(min_distance_counter) + "\n\n");
+            //Just start showing the distances after the distance moving average has being calculated
+            if (num_readings_count >= NUM_READINGS) {
+              Serial.println("distance_cm: " + String(distance_moving_average) + " cm | reading_interval: " + String(reading_interval) + " ms | reading_cycle: " + String(reading_cycle));
+            }
 
-        } //end else if 
-        else if (distance_cm >= MAX_DISTANCE_CM) {
-          max_distance_counter++;
-          Serial.println("\n\nWARNING! - Reading outside acceptable range!");
-          Serial.println("Distance measured: " + String(distance_cm) + "cm, is greather than MAX_DISTANCE_CM " + String(MAX_DISTANCE_CM) + "cm");
-          Serial.println("max_distance_counter = " + String(max_distance_counter) + "\n\n");
-        } //end else if 
+          // Dobra o intervalo para a próxima leitura
+          //reading_interval *= 2;
+          reading_interval = start_reading_interval * reading_cycle;
+          reading_cycle++;
 
-        delay(5000 - 5 - 500 - 10); // TODO: rethink the logic of the delays probably use millis(). Wait 5 seconds for new reading
+          // Verifica se o intervalo atingiu o limite
+          if (reading_interval >= stop_reading_interval) {
+            reading_interval = start_reading_interval; // Reinicia o intervalo
+            reading_cycle = 1;                       // Reinicia o contador de ciclos
+            Serial.println("Reiniciando o ciclo de leitura");
+          }
+
+          } //end if
+          else if (distance_cm <= MIN_DISTANCE_CM) {
+            min_distance_counter++;
+            num_readings_count = 0;
+            Serial.println("\n\nWARNING! - Reading outside acceptable range!");
+            Serial.println("Distance measured: " + String(distance_cm) + "cm, is shorter than MIN_DISTANCE_CM " + String(MIN_DISTANCE_CM) + "cm");
+            Serial.println("min_distance_counter = " + String(min_distance_counter) + "\n\n");
+
+          } //end else if 
+          else if (distance_cm >= MAX_DISTANCE_CM) {
+            max_distance_counter++;
+            num_readings_count = 0;
+            Serial.println("\n\nWARNING! - Reading outside acceptable range!");
+            Serial.println("Distance measured: " + String(distance_cm) + "cm, is greather than MAX_DISTANCE_CM " + String(MAX_DISTANCE_CM) + "cm");
+            Serial.println("max_distance_counter = " + String(max_distance_counter) + "\n\n");
+          } //end else if 
       }
+
+  } //end if millis
+  else {
+    //previous_US_millis = 0; //resets the reading_time do don't pass from stop_reading_interval
+  }
   //TODO: Reading Temperature: (it might be implemented to make distance corrections based on temperature)
  /*
     delay(10);
@@ -210,5 +263,19 @@ void readUltrasonic(){
  
     delay(500);
   */
-}
+} //end function
 
+/**************************************************** blinky() ********************************************************/
+#ifdef enable_blinky
+void blinky() {
+  unsigned long currentMillis = millis(); // Obtém o tempo atual em milissegundos
+
+  if (currentMillis - previousMillis >= interval) {
+    // Verifica se já se passou o intervalo de tempo
+    previousMillis = currentMillis; // Salva o instante atual
+
+    // Inverte o estado do LED
+    digitalWrite(ledPin, !digitalRead(ledPin));
+  }
+}
+#endif
