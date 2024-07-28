@@ -85,7 +85,7 @@ distance_cm (filtered): 163 cm
   long reading_time = 0.0;              //time in ms
   long start_reading_interval = 100.0;   //time in ms
   long reading_interval = start_reading_interval;
-  long stop_reading_interval = 2000.0;   //time in ms
+  long stop_reading_interval = 1000.0;   //time in ms
   int reading_cycle = 1;                //counts the cycles of the readigs
   unsigned long previous_US_millis = 0; // Armazena o último instante em que o LED mudou de estado
   const int ledPin = LED_BUILTIN;       // Pino do LED (geralmente 13)
@@ -168,13 +168,13 @@ void ultrasonicSetup(){
 void ultrasonicRead(){
   unsigned long current_US_millis = millis();
 
-  if (current_US_millis - previous_US_millis >= reading_interval && reading_time < stop_reading_interval) {  //start if millis
+  if (current_US_millis - previous_US_millis >= reading_interval && reading_time <= stop_reading_interval) {  //start if millis
     // Checks if the time interval has elapsed
     previous_US_millis = current_US_millis;
 
     US100Serial.flush();
     US100Serial.write(0x55);  //trigger US100 to start measuring the distance
-    delay(30);                //give the sensor time to make the measurement, a pulse width value greather than 60ms indicates an out of range condition
+    delay(30);                //give the sensor time to make the measurement, a pulse width value greather than 30ms indicates an out of range condition
   
       if(US100Serial.available() >= 2)    // check if received 2 bytes correctly
       {
@@ -213,11 +213,11 @@ void ultrasonicRead(){
           //Double the interval for the next reading
           //reading_interval *= 2;
           //Each cycle increases the reading time by start_reading_interval ms
-          reading_interval = start_reading_interval * reading_cycle;
           reading_cycle++;
-
+          reading_interval = start_reading_interval * reading_cycle;
+          
           // Checks if the maximal reating time (stop_reading_interval) was reached
-          if (reading_interval >= stop_reading_interval) {
+          if (reading_interval > stop_reading_interval) {
             reading_interval = start_reading_interval;    //restarts the interval
             reading_cycle = 1;                            //restarts the counter
             Serial.println("Restarting the reading cycle");
