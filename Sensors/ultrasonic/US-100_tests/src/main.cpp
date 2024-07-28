@@ -32,7 +32,7 @@ distance_cm (filtered): 163 cm
 
 */
 
-#define ID "US-100" //<=== CHANGE HERE ====
+#define ID "US-100" //<=== change the sensor name ====
 #define enable_Ultrasonic
 //#define enable_blinky
 
@@ -77,21 +77,16 @@ const char* compilation_time = __TIME__;
 #define SKETCH_DIR "\C:\\Projetos_GitHub\\PCAM_Performance_Tests\\Sensors\\ultrasonic\\US-100_tests\\src\\"
 #define SKETCH_NAME "main.cpp"
 
-// Variables not used yet
-int test_time = 60 * 5;         // 5 minutes 
-int temp = 0;
-
 #ifdef enable_blinky
   unsigned long previousMillis = 0; // Armazena o último instante em que o LED mudou de estado
   const long interval = 100; // Intervalo entre as piscadas (em milissegundos)
 #endif
 
-/**************************************************** Headers of the Function definitions ********************************************************/
+/**************************************** Headers of the Function definitions *****************************************/
 void sketchSetup();
 void ultrasonicSetup();
 void ultrasonicRead();
 void blinky();
-
 
 /**************************************************** setup() ********************************************************/
 void setup() {
@@ -100,11 +95,11 @@ void setup() {
       ultrasonicSetup();
     #endif
 
-    pinMode(ledPin, OUTPUT); // Configura o pino do LED como saída
+    pinMode(ledPin, OUTPUT); // sets ledPin as OUTPUT
 
 } //end setup
  
-/**************************************************** loop() ********************************************************/
+/**************************************************** loop() *********************************************************/
 void loop() {
   #ifdef enable_Ultrasonic
      ultrasonicRead();
@@ -115,62 +110,50 @@ void loop() {
 } //end loop
 
 
-/**************************************************** Function definitions ********************************************************/
-/**************************************************** sketchSetup() ********************************************************/
+/**************************************************** Function definitions *******************************************/
+/**************************************************** sketchSetup() **************************************************/
 void sketchSetup() {
   // Show sketch initial description and starts serial monitor
   Serial.begin(115200); 
+
   Serial.println("\n\n******************************************************************************************"); 
   Serial.println("Starting Sensor: " + String(ID)); 
   Serial.println("\n");
   Serial.println("Compilation Date: " + String(__DATE__));
   Serial.println("Compilation Time: " + String(__TIME__));
-  Serial.println("\nSystem version: US-100_20240726_01");
+  Serial.println("\nSystem version: US-100_20240727_01");
   Serial.println("");
   Serial.println("Developped by: Alexandre Nuernberg - alexandreberg@gmail.com");
   Serial.println("Master\'s thesis advisor: Sergio Augusto Bitencourt Petrovcic - sergio.petrovcic@ifsc.edu.br");
   Serial.println("");
   Serial.println("ProjectFolder: " + String(SKETCH_DIR));
   Serial.println("\nProject Sketch: " + String(SKETCH_NAME));
-  Serial.println("\nThis code can be found in: https://github.com/alexandreberg/PCAM_Performance_Tests.git");
+  Serial.println("\nThis project can be found in: https://github.com/alexandreberg/PCAM_Performance_Tests.git");
   Serial.println("******************************************************************************************"); 
   delay(1000);
 }
 
-/**************************************************** ultrasonicSetup() ********************************************************/
+/**************************************************** ultrasonicSetup() **********************************************/
 void ultrasonicSetup(){
-  //Serial.println("Setting up US-100 Ultrasonic Sensor");
   Serial.println("\n\n\nTesting Ultrasonic Sensor US-100 on a Nucleo L476RG Board...\n\n");
   US100Serial.begin(9600); //US-100 is running in serial mode
-  // initialize the array with zeros
+  // initialize the array to store the readings with zeros
       for (int i = 0; i < NUM_READINGS; i++) {
         readings[i] = 0;
       } //end for
 }
 
-/**************************************************** ultrasonicRead() ********************************************************/
+/**************************************************** ultrasonicRead() ***********************************************/
 void ultrasonicRead(){
-  //reading_interval = start_reading_interval * reading_cycle;
-  // Serial.println("reading_interval = " + String(reading_interval));
   unsigned long current_US_millis = millis();
-  // reading_time = current_US_millis - previous_US_millis;
-  // Serial.println("reading_time = " + String(reading_time));
-  // Serial.println("stop_reading_interval = " + String(stop_reading_interval));
-  // Serial.println("previous_US_millis = " + String(previous_US_millis));
-  // delay(1000);
 
   if (current_US_millis - previous_US_millis >= reading_interval && reading_time < stop_reading_interval) {  //start if millis
-  //if (reading_time >= reading_interval) {  //start if millis
-    //reading_cycle++;
-    // Serial.println("Entrou no if do millis: reading_interval = " + String(reading_interval));
-    // Serial.println("Entrou no if do millis: reading_cycle = " + String(reading_cycle));
-
     // Checks if the time interval has elapsed
     previous_US_millis = current_US_millis;
 
     US100Serial.flush();
-    US100Serial.write(0x55); //trigger US100 to start measuring the distance
-    delay(60);  // Give the sensor a little time to make the measurement
+    US100Serial.write(0x55);  //trigger US100 to start measuring the distance
+    delay(60);                //give the sensor time to make the measurement
   
       if(US100Serial.available() >= 2)    // check if received 2 bytes correctly
       {
@@ -181,7 +164,7 @@ void ultrasonicRead(){
 
           num_readings_count++; //Counts the numer of sensor readings
 
-          // To retrieve it you have to do the following calculation:
+          // To retrieve the distance, you have to do the following calculation:
           distance_cm  = (MSB_byte_dist * 256 + LSB_byte_dist)/10; //divide by 10 to have the distance in cm otherwhise it is in mm
 
           // Filter the readings in the range of sensors specifications
@@ -208,31 +191,39 @@ void ultrasonicRead(){
 
           // Dobra o intervalo para a próxima leitura
           //reading_interval *= 2;
+          //Each cycle increases the reading time by start_reading_interval ms
           reading_interval = start_reading_interval * reading_cycle;
           reading_cycle++;
 
-          // Verifica se o intervalo atingiu o limite
+          // Checks if the maximal reating time (stop_reading_interval) was reached
           if (reading_interval >= stop_reading_interval) {
-            reading_interval = start_reading_interval; // Reinicia o intervalo
-            reading_cycle = 1;                       // Reinicia o contador de ciclos
-            Serial.println("Reiniciando o ciclo de leitura");
+            reading_interval = start_reading_interval;    //restarts the interval
+            reading_cycle = 1;                            //restarts the counter
+            Serial.println("Restarting the reading cycle");
           }
 
           } //end if
           else if (distance_cm <= MIN_DISTANCE_CM) {
             min_distance_counter++;
             num_readings_count = 0;
-            Serial.println("\n\nWARNING! - Reading outside acceptable range!");
-            Serial.println("Distance measured: " + String(distance_cm) + "cm, is shorter than MIN_DISTANCE_CM " + String(MIN_DISTANCE_CM) + "cm");
-            Serial.println("min_distance_counter = " + String(min_distance_counter) + "\n\n");
+            // Serial.println("\n\nWARNING! - Reading outside acceptable range!");
+            // Serial.println("Distance measured: " + String(distance_cm) + "cm, is shorter than MIN_DISTANCE_CM " + String(MIN_DISTANCE_CM) + "cm");
+            // Serial.println("min_distance_counter = " + String(min_distance_counter) + "\n\n");
+            Serial.print("distance_cm: " + String(distance_moving_average) + " cm | reading_interval: " + String(reading_interval) + " ms | reading_cycle: " + String(reading_cycle));
+            Serial.println(" <=== WARNING MIN_DISTANCE_CM " + String (MIN_DISTANCE_CM) + " cm REACHED!");
 
           } //end else if 
           else if (distance_cm >= MAX_DISTANCE_CM) {
             max_distance_counter++;
             num_readings_count = 0;
-            Serial.println("\n\nWARNING! - Reading outside acceptable range!");
-            Serial.println("Distance measured: " + String(distance_cm) + "cm, is greather than MAX_DISTANCE_CM " + String(MAX_DISTANCE_CM) + "cm");
-            Serial.println("max_distance_counter = " + String(max_distance_counter) + "\n\n");
+            // Serial.println("\n\nWARNING! - Reading outside acceptable range!");
+            // Serial.println("Distance measured: " + String(distance_cm) + "cm, is greather than MAX_DISTANCE_CM " + String(MAX_DISTANCE_CM) + "cm");
+            // Serial.println("max_distance_counter = " + String(max_distance_counter) + "\n\n");
+            Serial.print("distance_cm: " + String(distance_moving_average) + " cm | reading_interval: " + String(reading_interval) + " ms | reading_cycle: " + String(reading_cycle));
+            Serial.println(" <=== WARNING MAX_DISTANCE_CM " + String (MAX_DISTANCE_CM) + " cm REACHED!");
+            // TODO: distance_cm: 37.60 cm | reading_interval: 1080 ms | reading_cycle: 19 <=== WARNING MAX_DISTANCE_CM 100.00 cm REACHED!
+            // distance_cm: 37.60 cm | reading_interval: 1080 ms | reading_cycle: 19 <=== WARNING MAX_DISTANCE_CM 100.00 cm REACHED!
+
           } //end else if 
       }
 
@@ -265,7 +256,7 @@ void ultrasonicRead(){
   */
 } //end function
 
-/**************************************************** blinky() ********************************************************/
+/**************************************************** blinky() *******************************************************/
 #ifdef enable_blinky
 void blinky() {
   unsigned long currentMillis = millis(); // Obtém o tempo atual em milissegundos
