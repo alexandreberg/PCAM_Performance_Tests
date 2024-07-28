@@ -11,6 +11,26 @@ Sensor operation: When the jumper is in place, you use 9600 baud UART to
 communicate with the sensor. In UART mode, send 0x55 and read back two
 bytes (16 bit value) that is mm distance, or 0x50 to read the temperature in °C. 
 
+Reading Distance:
+Reading starts sending a 5us pulse to the trigger pin or US100Serial.write(0x55) if it is in serial mode.
+So the US100 will respond with na echo output pulse.
+The echo response pulse width corresponds to the time it takes for the ultrasonic sound to travel from the sensor
+to the object and back. Hence the distance from the object can be computed by:
+
+Distance (m) = PulseWidth (s) * Speed_of_Soud / 2 (m)
+
+The actual speed of sound depends on several environmental factors,with temperature having the most pronunced
+effect. The speed of sound in dry is determined approximately by:
+
+V - 331.4 + 0.6 * T (m/s)
+
+To more accurate measurements you can use the Temperature sensor inside tje US100 to make the corrections.
+
+The distance formula unconsidering temperature is:
+
+Distance (m) = PulseWidth (s) * 165,7 (m)
+
+
 Board: STM32 Nucleo L476RG
 ************** Connections: ***************************
 Nucleo 64   - Power_Profiler_Kit_II - US-100
@@ -42,6 +62,7 @@ distance_cm (filtered): 163 cm
 // US-100 Ultrasonic Sensor definitions
 #ifdef enable_Ultrasonic
   #include <SoftwareSerial.h>           //Lib for the US-100 serial communication
+
   // Pins Assignments
   const int US100_TX = PA10;            //define the US100 tx pin
   const int US100_RX = PB3;             //define the US100 rx pin 
@@ -52,7 +73,7 @@ distance_cm (filtered): 163 cm
   unsigned int LSB_byte_dist = 0;       //stores the LSB of distance value
   const float MIN_DISTANCE_CM = 10.0;   //Minimum distance to consider acceptable (cm)
   const float MAX_DISTANCE_CM = 100.0;  //Maximum distance to consider acceptable (cm)
-  int num_readings_count = 0;                 //number of sensor readings
+  int num_readings_count = 0;           //number of sensor readings
   int min_distance_counter = 0;         //count the number of sensor readings under minimum sensor range
   int max_distance_counter = 0;         //count the number of sensor readings over maximum sensor range
   float distance_moving_average = 0.0;  //stores the value of the distance moving average
@@ -62,9 +83,9 @@ distance_cm (filtered): 163 cm
   float sum_of_total_readings = 0.0;    //stores the sum of the readings
   float distance_cm = 0.0;              //stores the distance_moving_average calculated distance value
   long reading_time = 0.0;              //time in ms
-  long start_reading_interval = 60.0;   //time in ms
+  long start_reading_interval = 100.0;   //time in ms
   long reading_interval = start_reading_interval;
-  long stop_reading_interval = 5000.0;  //time in ms
+  long stop_reading_interval = 2000.0;   //time in ms
   int reading_cycle = 1;                //counts the cycles of the readigs
   unsigned long previous_US_millis = 0; // Armazena o último instante em que o LED mudou de estado
   const int ledPin = LED_BUILTIN;       // Pino do LED (geralmente 13)
@@ -153,7 +174,7 @@ void ultrasonicRead(){
 
     US100Serial.flush();
     US100Serial.write(0x55);  //trigger US100 to start measuring the distance
-    delay(60);                //give the sensor time to make the measurement
+    delay(30);                //give the sensor time to make the measurement, a pulse width value greather than 60ms indicates an out of range condition
   
       if(US100Serial.available() >= 2)    // check if received 2 bytes correctly
       {
@@ -189,7 +210,7 @@ void ultrasonicRead(){
               Serial.println("distance_cm: " + String(distance_moving_average) + " cm | reading_interval: " + String(reading_interval) + " ms | reading_cycle: " + String(reading_cycle));
             }
 
-          // Dobra o intervalo para a próxima leitura
+          //Double the interval for the next reading
           //reading_interval *= 2;
           //Each cycle increases the reading time by start_reading_interval ms
           reading_interval = start_reading_interval * reading_cycle;
@@ -203,26 +224,28 @@ void ultrasonicRead(){
           }
 
           } //end if
+
+          //Checks if reading distace is under the minimal value
           else if (distance_cm <= MIN_DISTANCE_CM) {
             min_distance_counter++;
             num_readings_count = 0;
             // Serial.println("\n\nWARNING! - Reading outside acceptable range!");
             // Serial.println("Distance measured: " + String(distance_cm) + "cm, is shorter than MIN_DISTANCE_CM " + String(MIN_DISTANCE_CM) + "cm");
             // Serial.println("min_distance_counter = " + String(min_distance_counter) + "\n\n");
-            Serial.print("distance_cm: " + String(distance_moving_average) + " cm | reading_interval: " + String(reading_interval) + " ms | reading_cycle: " + String(reading_cycle));
+            Serial.print("distance_cm: " + String(distance_cm) + " cm | reading_interval: " + String(reading_interval) + " ms | reading_cycle: " + String(reading_cycle));
             Serial.println(" <=== WARNING MIN_DISTANCE_CM " + String (MIN_DISTANCE_CM) + " cm REACHED!");
 
           } //end else if 
+
+          //Checks if reading distace is over the maximal value
           else if (distance_cm >= MAX_DISTANCE_CM) {
             max_distance_counter++;
             num_readings_count = 0;
             // Serial.println("\n\nWARNING! - Reading outside acceptable range!");
             // Serial.println("Distance measured: " + String(distance_cm) + "cm, is greather than MAX_DISTANCE_CM " + String(MAX_DISTANCE_CM) + "cm");
             // Serial.println("max_distance_counter = " + String(max_distance_counter) + "\n\n");
-            Serial.print("distance_cm: " + String(distance_moving_average) + " cm | reading_interval: " + String(reading_interval) + " ms | reading_cycle: " + String(reading_cycle));
+            Serial.print("distance_cm: " + String(distance_cm) + " cm | reading_interval: " + String(reading_interval) + " ms | reading_cycle: " + String(reading_cycle));
             Serial.println(" <=== WARNING MAX_DISTANCE_CM " + String (MAX_DISTANCE_CM) + " cm REACHED!");
-            // TODO: distance_cm: 37.60 cm | reading_interval: 1080 ms | reading_cycle: 19 <=== WARNING MAX_DISTANCE_CM 100.00 cm REACHED!
-            // distance_cm: 37.60 cm | reading_interval: 1080 ms | reading_cycle: 19 <=== WARNING MAX_DISTANCE_CM 100.00 cm REACHED!
 
           } //end else if 
       }
